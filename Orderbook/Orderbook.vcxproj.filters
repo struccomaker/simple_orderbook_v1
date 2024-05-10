@@ -23,5 +23,8 @@
     <ClInclude Include="libary.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="header.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
