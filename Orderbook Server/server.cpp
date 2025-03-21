@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <memory>
 #include <mutex>
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 // Windows specific headers
 #include <WinSock2.h>
@@ -454,7 +456,7 @@ private:
 
         // Copy bid levels
         const auto& bids = levelInfos.GetBids();
-        response.bidLevelsCount = std::min(static_cast<uint32_t>(bids.size()), static_cast<uint32_t>(MAX_LEVELS));
+        response.bidLevelsCount = MIN(static_cast<uint32_t>(bids.size()), static_cast<uint32_t>(MAX_LEVELS));
         for (uint32_t i = 0; i < response.bidLevelsCount; ++i) {
             response.bidLevels[i].price = bids[i].price_;
             response.bidLevels[i].quantity = bids[i].quantity_;
@@ -462,7 +464,7 @@ private:
 
         // Copy ask levels
         const auto& asks = levelInfos.GetAsks();
-        response.askLevelsCount = std::min(static_cast<uint32_t>(asks.size()), static_cast<uint32_t>(MAX_LEVELS));
+        response.askLevelsCount = MIN(static_cast<uint32_t>(asks.size()), static_cast<uint32_t>(MAX_LEVELS));
         for (uint32_t i = 0; i < response.askLevelsCount; ++i) {
             response.askLevels[i].price = asks[i].price_;
             response.askLevels[i].quantity = asks[i].quantity_;
@@ -478,7 +480,7 @@ private:
     // Handle unknown request
     void handleUnknownRequest(SOCKET clientSocket, uint32_t sequence) {
         MessageHeader response;
-        response.type = MessageType::ERROR;
+        response.type = MessageType::CMD_ERROR;
         response.length = sizeof(MessageHeader);
         response.sequence = sequence;
         response.toNetworkOrder();
@@ -486,8 +488,58 @@ private:
         send(clientSocket, (const char*)&response, sizeof(response), 0);
     }
 
-    // Send trade notification to a client
     void sendTradeNotification(SOCKET clientSocket, const Trade& trade) {
         TradeNotification notification;
         notification.header.type = MessageType::NOTIFY_TRADE;
-        notification.header.length
+        notification.header.length = sizeof(TradeNotification);
+        notification.header.sequence = 0;
+        notification.buyOrderId = trade.GetBidTrade().orderId_;
+        notification.sellOrderId = trade.GetAskTrade().orderId_;
+        notification.price = trade.GetBidTrade().price_;
+        notification.quantity = trade.GetBidTrade().quantity_;
+
+        // Convert to network byte order
+        notification.toNetworkOrder();
+
+        // Send notification
+        send(clientSocket, (const char*)&notification, sizeof(notification), 0);
+    }
+
+    int port_;
+    SOCKET serverSocket_ = INVALID_SOCKET;
+    TaskQueue threadPool_;
+    ThreadSafeOrderbook orderbook_;
+    std::atomic<uint32_t> nextClientId_;
+    std::atomic<bool> running_;
+    std::thread acceptThread_;
+    std::mutex clientsMutex_;
+    std::unordered_map<SOCKET, uint32_t> clients_; // socket -> client id
+};
+
+int main() {
+    int port;
+    std::cout << "Enter port number: ";
+    std::cin >> port;
+
+    int numThreads;
+    std::cout << "Enter number of worker threads: ";
+    std::cin >> numThreads;
+
+    TcpServer server(port, numThreads);
+
+    if (!server.start()) {
+        std::cerr << "Failed to start server" << std::endl;
+        return 1;
+    }
+
+    std::cout << "Server started. Press Enter to stop." << std::endl;
+    std::cin.ignore(); // Clear the newline from previous input
+    std::cin.get();    // Wait for Enter
+
+    std::cout << "Stopping server..." << std::endl;
+    server.stop();
+    std::cout << "Server stopped" << std::endl;
+
+    return 0;
+}
+

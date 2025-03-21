@@ -130,6 +130,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="message_format.h" />
+    <ClInclude Include="orderbook.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="client.cpp" />
+    <ClCompile Include="orderbook.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
